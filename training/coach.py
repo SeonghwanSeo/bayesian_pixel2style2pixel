@@ -129,10 +129,16 @@ class Coach:
 		agg_loss_dict = []
 		for batch_idx, batch in enumerate(self.test_dataloader):
 			x, y = batch
-
 			with torch.no_grad():
 				x, y = x.to(self.device).float(), y.to(self.device).float()
-				y_hat, latent = self.net.forward(x, return_latents=True)
+				if self.opts.mc_samples > 0 :
+					code = self.net.get_code(x)
+					for _ in range(self.opts.mc_samples) :
+						code += self.net.get_code(x)
+						code /= self.opts.mc_samples
+					y_hat, latent = self.net.forward(code, input_code = True, return_latents=True)
+				else :
+					y_hat, latent = self.net.forward(x, return_latents=True)
 				loss, cur_loss_dict, id_logs = self.calc_loss(x, y, y_hat, latent)
 			agg_loss_dict.append(cur_loss_dict)
 
@@ -237,6 +243,13 @@ class Coach:
 			loss_dict['loss_moco'] = float(loss_moco)
 			loss_dict['id_improve'] = float(sim_improvement)
 			loss += loss_moco * self.opts.moco_lambda
+		# bayesian regularization
+		if self.opts.bayesian > 0 :
+			regularization = self.net.encoder.get_regularization()
+			regularization *= self.opts.reg_lambda
+			loss_dict['regularization'] = float(regularization)
+			loss_dict['loss_w/o_reg'] = float(loss)
+			loss += regularization
 
 		loss_dict['loss'] = float(loss)
 		return loss, loss_dict, id_logs
@@ -251,6 +264,11 @@ class Coach:
 		print(f'Metrics for {prefix}, step {self.global_step}')
 		for key, value in metrics_dict.items():
 			print(f'\t{key} = ', value)
+		if self.opts.bayesian > 0 :
+			print('dropout rate')
+			p = self.net.encoder.get_p()
+			fmt = '%.2f '*(len(p))
+			print(fmt % tuple(p))
 
 	def parse_and_log_images(self, id_logs, x, y, y_hat, title, subscript=None, display_count=2):
 		im_data = []

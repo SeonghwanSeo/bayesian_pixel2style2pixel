@@ -1,0 +1,17 @@
+python scripts/train.py \
+--dataset_type=celebs_super_resolution \
+--exp_dir=experiment/super_resolution \
+--batch_size=4 \
+--workers=4 \
+--test_batch_size=4 \
+--test_workers=4 \
+--val_interval=2500 \
+--save_interval=5000 \
+--encoder_type=BayesianGradualStyleEncoder \
+--mc_samples=5 \
+--start_from_latent_avg \
+--lpips_lambda=0.8 \
+--l2_lambda=1 \
+--id_lambda=0.1 \
+--w_norm_lambda=0.005 \
+--resize_factors=1,2,4,8,16,32

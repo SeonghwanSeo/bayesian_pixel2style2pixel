@@ -8,6 +8,7 @@ import math
 import torch
 from torch import nn
 from models.encoders import psp_encoders
+from models.bayesian_encoders import baye_psp_encoders
 from models.stylegan2.model import Generator
 from configs.paths_config import model_paths
 
@@ -40,6 +41,8 @@ class pSp(nn.Module):
 			encoder = psp_encoders.BackboneEncoderUsingLastLayerIntoW(50, 'ir_se', self.opts)
 		elif self.opts.encoder_type == 'BackboneEncoderUsingLastLayerIntoWPlus':
 			encoder = psp_encoders.BackboneEncoderUsingLastLayerIntoWPlus(50, 'ir_se', self.opts)
+		elif self.opts.encoder_type == 'BayesianGradualStyleEncoder':
+			encoder = baye_psp_encoders.BayesianGradualStyleEncoder(50, 'ir_se', self.opts)
 		else:
 			raise Exception('{} is not a valid encoders'.format(self.opts.encoder_type))
 		return encoder
@@ -66,12 +69,25 @@ class pSp(nn.Module):
 			else:
 				self.__load_latent_avg(ckpt, repeat=self.opts.n_styles)
 
+	def get_code(self, x) :
+		codes = self.encoder(x)
+		# normalize with respect to the center of an average face
+		if self.opts.start_from_latent_avg:
+			if self.opts.learn_in_w:
+				codes = codes + self.latent_avg.repeat(codes.shape[0], 1)
+			else:
+				codes = codes + self.latent_avg.repeat(codes.shape[0], 1, 1)
+		return codes
+
 	def forward(self, x, resize=True, latent_mask=None, input_code=False, randomize_noise=True,
-	            inject_latent=None, return_latents=False, alpha=None):
+	            inject_latent=None, return_latents=False, alpha=None, mc_samples = 1):
 		if input_code:
 			codes = x
 		else:
-			codes = self.encoder(x)
+			codes = 0.
+			for _ in range(mc_samples) :
+				codes += self.encoder(x)
+			codes /= mc_samples
 			# normalize with respect to the center of an average face
 			if self.opts.start_from_latent_avg:
 				if self.opts.learn_in_w:

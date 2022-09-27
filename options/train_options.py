@@ -50,6 +50,17 @@ class TrainOptions:
 		# arguments for super-resolution
 		self.parser.add_argument('--resize_factors', type=str, default=None, help='For super-res, comma-separated resize factors to use for inference.')
 
+		# arguments for bayesian training
+		self.parser.add_argument('--mc_samples', type=int, default=0, help='Number of Monte-Carlo Samples')
+		self.parser.add_argument('--reg_lambda', type=float, default=1e-4, help='Regulization multiplier factor')
+
 	def parse(self):
 		opts = self.parser.parse_args()
+		if opts.encoder_type == 'BayesianGradualStyleEncoder' :
+			opts.bayesian = True
+			if opts.mc_samples == 0 :
+				opts.mc_samples = 10
+		else :
+			opts.bayesian = False
+			opts.mc_samples = 0
 		return opts
