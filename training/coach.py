@@ -131,21 +131,15 @@ class Coach:
 			x, y = batch
 			with torch.no_grad():
 				x, y = x.to(self.device).float(), y.to(self.device).float()
-				if self.opts.mc_samples > 0 :
-					code = self.net.get_code(x)
-					for _ in range(self.opts.mc_samples) :
-						code += self.net.get_code(x)
-						code /= self.opts.mc_samples
-					y_hat, latent = self.net.forward(code, input_code = True, return_latents=True)
-				else :
-					y_hat, latent = self.net.forward(x, return_latents=True)
+				code = self.net.get_code(x, self.opt.mc_samples)
+				y_hat, latent = self.net.forward(code, input_code = True, return_latents=True)
 				loss, cur_loss_dict, id_logs = self.calc_loss(x, y, y_hat, latent)
 			agg_loss_dict.append(cur_loss_dict)
 
 			# Logging related
-			self.parse_and_log_images(id_logs, x, y, y_hat,
-									  title='images/test/faces',
-									  subscript='{:04d}'.format(batch_idx))
+			if batch_idx % 50 == 0 :
+				self.parse_and_log_images(id_logs, x, y, y_hat,
+						title='images/test/faces', subscript='{:04d}'.format(batch_idx))
 
 			# Log images of first batch to wandb
 			if self.opts.use_wandb and batch_idx == 0:
@@ -256,7 +250,8 @@ class Coach:
 
 	def log_metrics(self, metrics_dict, prefix):
 		for key, value in metrics_dict.items():
-			self.logger.add_scalar(f'{prefix}/{key}', value, self.global_step)
+			pass
+			#self.logger.add_scalar(f'{prefix}/{key}', value, self.global_step)
 		if self.opts.use_wandb:
 			self.wb_logger.log(prefix, metrics_dict, self.global_step)
 
@@ -267,7 +262,7 @@ class Coach:
 		if self.opts.bayesian > 0 :
 			print('dropout rate')
 			p = self.net.encoder.get_p()
-			fmt = '%.2f '*(len(p))
+			fmt = '%.4f '*(len(p))
 			print(fmt % tuple(p))
 
 	def parse_and_log_images(self, id_logs, x, y, y_hat, title, subscript=None, display_count=2):

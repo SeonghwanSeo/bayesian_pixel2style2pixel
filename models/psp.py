@@ -69,8 +69,11 @@ class pSp(nn.Module):
 			else:
 				self.__load_latent_avg(ckpt, repeat=self.opts.n_styles)
 
-	def get_code(self, x) :
-		codes = self.encoder(x)
+	def get_code(self, x, mc_samples=1) :
+		codes = 0
+		for _ in range(mc_samples) :
+			codes += self.encoder(x)
+		codes /= float(mc_samples)
 		# normalize with respect to the center of an average face
 		if self.opts.start_from_latent_avg:
 			if self.opts.learn_in_w:
@@ -84,17 +87,7 @@ class pSp(nn.Module):
 		if input_code:
 			codes = x
 		else:
-			codes = 0.
-			for _ in range(mc_samples) :
-				codes += self.encoder(x)
-			codes /= mc_samples
-			# normalize with respect to the center of an average face
-			if self.opts.start_from_latent_avg:
-				if self.opts.learn_in_w:
-					codes = codes + self.latent_avg.repeat(codes.shape[0], 1)
-				else:
-					codes = codes + self.latent_avg.repeat(codes.shape[0], 1, 1)
-
+			codes = self.get_code(x, mc_samples)
 
 		if latent_mask is not None:
 			for i in latent_mask:

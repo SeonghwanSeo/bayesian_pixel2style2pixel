@@ -7,7 +7,7 @@ import numpy as np
 # Yarin Gal, Jiri Hron, Alex Kendall, Concrete Dropout, NIPS 2017
 
 class ConcreteDropout(nn.Module):
-    def __init__(self, weight_regularizer = 1e-6, dropout_regularizer=1e-3, init_min = 0.1, init_max = 0.1):
+    def __init__(self, weight_regularizer = 1e-6, dropout_regularizer=1e-3, init_min = 0.001, init_max = 0.001):
         super().__init__()
         self.weight_regularizer = weight_regularizer
         self.dropout_regularizer = dropout_regularizer
