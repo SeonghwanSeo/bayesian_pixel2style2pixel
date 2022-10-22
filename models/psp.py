@@ -70,10 +70,10 @@ class pSp(nn.Module):
 				self.__load_latent_avg(ckpt, repeat=self.opts.n_styles)
 
 	def get_code(self, x, mc_samples=1) :
-		codes = 0
-		for _ in range(mc_samples) :
+		codes = self.encoder(x)
+		for _ in range(mc_samples-1) :
 			codes += self.encoder(x)
-		codes /= float(mc_samples)
+		codes = codes / mc_samples
 		# normalize with respect to the center of an average face
 		if self.opts.start_from_latent_avg:
 			if self.opts.learn_in_w:

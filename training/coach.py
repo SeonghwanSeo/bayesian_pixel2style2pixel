@@ -9,6 +9,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
+import time
 
 from utils import common, train_utils
 from criteria import id_loss, w_norm, moco_loss
@@ -94,7 +95,7 @@ class Coach:
 				self.optimizer.step()
 
 				# Logging related
-				if self.global_step % self.opts.image_interval == 0 or (self.global_step < 1000 and self.global_step % 25 == 0):
+				if self.global_step % self.opts.image_interval == 0 :
 					self.parse_and_log_images(id_logs, x, y, y_hat, title='images/train/faces')
 				if self.global_step % self.opts.board_interval == 0:
 					self.print_metrics(loss_dict, prefix='train')
@@ -131,8 +132,7 @@ class Coach:
 			x, y = batch
 			with torch.no_grad():
 				x, y = x.to(self.device).float(), y.to(self.device).float()
-				code = self.net.get_code(x, self.opt.mc_samples)
-				y_hat, latent = self.net.forward(code, input_code = True, return_latents=True)
+				y_hat, latent = self.net.forward(x, return_latents=True, mc_samples=self.opts.mc_samples)
 				loss, cur_loss_dict, id_logs = self.calc_loss(x, y, y_hat, latent)
 			agg_loss_dict.append(cur_loss_dict)
 
@@ -140,6 +140,9 @@ class Coach:
 			if batch_idx % 50 == 0 :
 				self.parse_and_log_images(id_logs, x, y, y_hat,
 						title='images/test/faces', subscript='{:04d}'.format(batch_idx))
+
+			if batch_idx == 500 :
+				break
 
 			# Log images of first batch to wandb
 			if self.opts.use_wandb and batch_idx == 0:
@@ -256,7 +259,8 @@ class Coach:
 			self.wb_logger.log(prefix, metrics_dict, self.global_step)
 
 	def print_metrics(self, metrics_dict, prefix):
-		print(f'Metrics for {prefix}, step {self.global_step}')
+		print()
+		print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [{prefix.upper()}], step {self.global_step}")
 		for key, value in metrics_dict.items():
 			print(f'\t{key} = ', value)
 		if self.opts.bayesian > 0 :
