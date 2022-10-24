@@ -68,27 +68,26 @@ def run():
             with torch.no_grad():
                 input_cuda = input_batch.cuda().float()
                 tic = time.time()
-                result_batch, latent = run_on_batch(input_cuda, net, opts, iter_time)
+                result_batch, latent, sigma = run_on_batch(input_cuda, net, opts, iter_time)
+                print(sigma)
                 toc = time.time()
                 global_time.append(toc - tic)
                 latent_list.append(latent)
 
             result = tensor2im(result_batch[0])
+            result_ds = tensor2im(dataset.transform(result))
             im_path = dataset.paths[0]
 
             if opts.couple_outputs or global_i % 100 == 0:
                 input_im = log_input_image(input_batch[0], opts)
                 resize_amount = (256, 256) if opts.resize_outputs else (opts.output_size, opts.output_size)
-                if opts.resize_factors is not None:
-                    # for super resolution, save the original, down-sampled, and output
-                    source = Image.open(im_path)
-                    res = np.concatenate([np.array(source.resize(resize_amount)),
-                                        np.array(input_im.resize(resize_amount, resample=Image.NEAREST)),
-                                        np.array(result.resize(resize_amount))], axis=1)
-                else:
-                    # otherwise, save the original and output
-                    res = np.concatenate([np.array(input_im.resize(resize_amount)),
-                                        np.array(result.resize(resize_amount))], axis=1)
+                source = Image.open(im_path)
+                res = np.concatenate([
+                                    np.array(source.resize(resize_amount)),
+                                    np.array(input_im.resize(resize_amount, resample=Image.NEAREST)),
+                                    np.array(result.resize(resize_amount)),
+                                    np.array(result_ds.resize(resize_amount, resample=Image.NEAREST))
+                                    ], axis=1)
                 Image.fromarray(res).save(os.path.join(iter_out_path_coupled, f'{iter_time}.jpg'))
 
             im_save_path = os.path.join(iter_out_path_results, f'{iter_time}.jpg')
@@ -99,10 +98,10 @@ def run():
         #stats_path = os.path.join(opts.exp_dir, 'stats.txt')
     result_str = 'Runtime {:.4f}+-{:.4f}'.format(np.mean(global_time), np.std(global_time))
     print(result_str)
-    latents = torch.cat(latent_list, dim=0)
-    print(torch.mean(latents, dim=0))
-    latent_std = torch.std(latents, dim=0)
-    print(latent_std.sum(dim=-1))
+#    latents = torch.cat(latent_list, dim=0)
+#    print(torch.mean(latents, dim=0))
+#    latent_std = torch.std(latents, dim=0)
+#    print(latent_std.mean(dim=-1))
 
     #with open(stats_path, 'w') as f:
     #    f.write(result_str)
@@ -110,8 +109,13 @@ def run():
 
 def run_on_batch(inputs, net, opts, seed):
     torch.manual_seed(seed)
+    print('seed', seed)
     if opts.latent_mask is None:
-        result_batch, latent = net(inputs, randomize_noise=False, resize=opts.resize_outputs, return_latents=True)
+        #result_batch, latent = net(inputs, randomize_noise=False, resize=opts.resize_outputs, return_latents=True, mc_samples=5)
+
+        #latent = net.get_code(inputs, 5)
+        latent, sigma = net.get_code_w_sigma(inputs, 10)
+        result_batch, latent = net(latent, randomize_noise=False, resize=opts.resize_outputs, input_code=True, return_latents=True)
     else:
         latent_mask = [int(l) for l in opts.latent_mask.split(",")]
         result_batch = []
@@ -130,7 +134,7 @@ def run_on_batch(inputs, net, opts, seed):
                       return_latents = True)
             result_batch.append(res)
         result_batch = torch.cat(result_batch, dim=0)
-    return result_batch, latent
+    return result_batch, latent, sigma
 
 
 if __name__ == '__main__':

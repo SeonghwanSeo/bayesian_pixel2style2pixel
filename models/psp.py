@@ -69,6 +69,18 @@ class pSp(nn.Module):
 			else:
 				self.__load_latent_avg(ckpt, repeat=self.opts.n_styles)
 
+	def get_code_w_sigma(self, x, mc_samples=1) :
+		codes = torch.stack([self.encoder(x) for _ in range(mc_samples)], dim=0)
+		sigma, codes = torch.std_mean(codes, dim=0)
+		sigma = sigma.sum(dim=-1)
+		# normalize with respect to the center of an average face
+		if self.opts.start_from_latent_avg:
+			if self.opts.learn_in_w:
+				codes = codes + self.latent_avg.repeat(codes.shape[0], 1)
+			else:
+				codes = codes + self.latent_avg.repeat(codes.shape[0], 1, 1)
+		return codes, sigma
+
 	def get_code(self, x, mc_samples=1) :
 		codes = self.encoder(x)
 		for _ in range(mc_samples-1) :
@@ -99,7 +111,8 @@ class pSp(nn.Module):
 				else:
 					codes[:, i] = 0
 
-		input_is_latent = not input_code
+		#input_is_latent = not input_code
+		input_is_latent = True
 		images, result_latent = self.decoder([codes],
 		                                     input_is_latent=input_is_latent,
 		                                     randomize_noise=randomize_noise,
